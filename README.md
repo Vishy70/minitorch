@@ -1,6 +1,11 @@
 # minitorch
 The full minitorch student suite. 
 
+# Hand Classifiers
+
+## Linear Dataset
+
+
 
 To access the autograder: 
 

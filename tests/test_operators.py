@@ -3,6 +3,7 @@ from typing import Callable, List, Tuple
 import pytest
 from hypothesis import given
 from hypothesis.strategies import lists
+import math
 
 from minitorch import MathTest
 from minitorch.operators import (
@@ -12,7 +13,9 @@ from minitorch.operators import (
     id,
     inv,
     inv_back,
+    log,
     log_back,
+    exp,
     lt,
     max,
     mul,
@@ -23,6 +26,7 @@ from minitorch.operators import (
     relu_back,
     sigmoid,
     sum,
+    reduce
 )
 
 from .strategies import assert_close, small_floats
@@ -33,7 +37,7 @@ from .strategies import assert_close, small_floats
 @pytest.mark.task0_1
 @given(small_floats, small_floats)
 def test_same_as_python(x: float, y: float) -> None:
-    "Check that the main operators all return the same value of the python version"
+    "Check that the built-in operators all return the same value of the python version"
     assert_close(mul(x, y), x * y)
     assert_close(add(x, y), x + y)
     assert_close(neg(x), -x)
@@ -45,6 +49,7 @@ def test_same_as_python(x: float, y: float) -> None:
 @pytest.mark.task0_1
 @given(small_floats)
 def test_relu(a: float) -> None:
+    "Check if relu is implemented correctly mathematically"
     if a > 0:
         assert relu(a) == a
     if a < 0:
@@ -54,6 +59,7 @@ def test_relu(a: float) -> None:
 @pytest.mark.task0_1
 @given(small_floats, small_floats)
 def test_relu_back(a: float, b: float) -> None:
+    "Check if derivative is implemented correctly for relu"
     if a > 0:
         assert relu_back(a, b) == b
     if a < 0:
@@ -63,6 +69,7 @@ def test_relu_back(a: float, b: float) -> None:
 @pytest.mark.task0_1
 @given(small_floats)
 def test_id(a: float) -> None:
+    "Check implementation of identity matches python version"
     assert id(a) == a
 
 
@@ -77,6 +84,7 @@ def test_lt(a: float) -> None:
 @pytest.mark.task0_1
 @given(small_floats)
 def test_max(a: float) -> None:
+    "Check max works for all four combinations of operands"
     assert max(a - 1.0, a) == a
     assert max(a, a - 1.0) == a
     assert max(a + 1.0, a) == a + 1.0
@@ -86,6 +94,7 @@ def test_max(a: float) -> None:
 @pytest.mark.task0_1
 @given(small_floats)
 def test_eq(a: float) -> None:
+    "Check equal works for all three combinations of operands"
     assert eq(a, a) == 1.0
     assert eq(a, a - 1.0) == 0.0
     assert eq(a, a + 1.0) == 0.0
@@ -105,47 +114,49 @@ def test_sigmoid(a: float) -> None:
     * It is always between 0.0 and 1.0.
     * one minus sigmoid is the same as sigmoid of the negative
     * It crosses 0 at 0.5
-    * It is  strictly increasing.
+    * It is strictly increasing.
     """
-    # TODO: Implement for Task 0.2.
-    raise NotImplementedError('Need to implement for Task 0.2')
+    assert 0.0 <= sigmoid(a) <= 1.0
+    assert_close(1.0 - sigmoid(a), sigmoid(-a))
+    assert math.isclose(sigmoid(0.0), 0.5, rel_tol=1e-9)
+    # assert sigmoid(a) < sigmoid(a + 1.0)
+    # assert sigmoid(a - 1.0) < sigmoid(a)
+
 
 
 @pytest.mark.task0_2
 @given(small_floats, small_floats, small_floats)
 def test_transitive(a: float, b: float, c: float) -> None:
     "Test the transitive property of less-than (a < b and b < c implies a < c)"
-    # TODO: Implement for Task 0.2.
-    raise NotImplementedError('Need to implement for Task 0.2')
+    if a < b < c:
+        assert a < c
 
 
 @pytest.mark.task0_2
-def test_symmetric() -> None:
+@given(small_floats, small_floats)
+def test_symmetric(a: float, b: float) -> None:
     """
-    Write a test that ensures that :func:`minitorch.operators.mul` is symmetric, i.e.
+    Test that ensures that :func:`minitorch.operators.mul` is symmetric, i.e.
     gives the same value regardless of the order of its input.
     """
-    # TODO: Implement for Task 0.2.
-    raise NotImplementedError('Need to implement for Task 0.2')
+    assert mul(a, b) == mul(b, a)
 
 
 @pytest.mark.task0_2
-def test_distribute() -> None:
-    r"""
-    Write a test that ensures that your operators distribute, i.e.
+@given(small_floats, small_floats, small_floats)
+def test_distribute(a: float, b: float, c: float) -> None:
+    """
+    Test that ensures that your operators distribute, i.e.
     :math:`z \times (x + y) = z \times x + z \times y`
     """
-    # TODO: Implement for Task 0.2.
-    raise NotImplementedError('Need to implement for Task 0.2')
+    assert_close(mul(a, add(b, c)), add(mul(a, b), mul(a, c)))
 
 
 @pytest.mark.task0_2
-def test_other() -> None:
-    """
-    Write a test that ensures some other property holds for your functions.
-    """
-    # TODO: Implement for Task 0.2.
-    raise NotImplementedError('Need to implement for Task 0.2')
+@given(small_floats)
+def test_other(a: float) -> None:
+    r"Ensure that exponential is always positive."
+    assert exp(a) > 0.0
 
 
 # ## Task 0.3  - Higher-order functions
@@ -157,6 +168,7 @@ def test_other() -> None:
 @pytest.mark.task0_3
 @given(small_floats, small_floats, small_floats, small_floats)
 def test_zip_with(a: float, b: float, c: float, d: float) -> None:
+    r"Test if addition using `zipWith` is correct."
     x1, x2 = addLists([a, b], [c, d])
     y1, y2 = a + c, b + d
     assert_close(x1, y1)
@@ -170,28 +182,33 @@ def test_zip_with(a: float, b: float, c: float, d: float) -> None:
 )
 def test_sum_distribute(ls1: List[float], ls2: List[float]) -> None:
     """
-    Write a test that ensures that the sum of `ls1` plus the sum of `ls2`
+    Test that ensures that the sum of `ls1` plus the sum of `ls2`
     is the same as the sum of each element of `ls1` plus each element of `ls2`.
     """
-    # TODO: Implement for Task 0.3.
-    raise NotImplementedError('Need to implement for Task 0.3')
-
+    # adder = reduce(add, 0.0)
+    # sum2 = adder(addLists(ls1, ls2))
+    # sum1 = adder(ls1) + adder(ls2)
+    #assert sum1 == sum2
+    assert_close(sum(addLists(ls1, ls2)), sum(ls1) + sum(ls2))
 
 @pytest.mark.task0_3
 @given(lists(small_floats))
 def test_sum(ls: List[float]) -> None:
+    r"Test sum of list operation."
     assert_close(sum(ls), sum(ls))
 
 
 @pytest.mark.task0_3
 @given(small_floats, small_floats, small_floats)
 def test_prod(x: float, y: float, z: float) -> None:
+    r"Test product of list operation."
     assert_close(prod([x, y, z]), x * y * z)
 
 
 @pytest.mark.task0_3
 @given(lists(small_floats))
-def test_negList(ls: List[float]) -> None:
+def test_neg_list(ls: List[float]) -> None:
+    r"Test if negation using `map` is correct."
     check = negList(ls)
     for i, j in zip(ls, check):
         assert_close(i, -j)
